@@ -1,1 +1,50 @@
+Scenario for real time purpose from detections
+**Scenario:**
+> You receive alerts indicating a user logged in over RDP at 2:15 AM, then executed a base64-encoded PowerShell script, and finally triggered an access to `lsass.exe`.
 
+This project gives you:
+- Detection logic to identify the attack
+- Automated Python scripts to respond immediately
+
+---
+
+##  Detection Logic Explained (SPL)
+
+### 1. `unusual_login_time.spl` — *RDP logins outside of business hours*
+```spl
+index=wineventlog EventCode=4624 LogonType=10
+| eval hour=strftime(_time, "%H")
+| where hour < 6 OR hour > 20
+| stats count by user, src_ip, ComputerName, _time
+```
+🔹 **What it does:** Looks for RDP logins (`LogonType=10`) that happen before 6 AM or after 8 PM — a sign of suspicious lateral movement or compromised admin use.
+
+🔹 **Why it matters:** Threat actors often avoid detection by operating during off-hours.
+
+---
+
+### 2. `powershell_obfuscation.spl` — *Obfuscated or encoded PowerShell use*
+```spl
+index=windows EventCode=4104 OR EventCode=4688
+| eval ps_command=coalesce(ScriptBlockText, CommandLine)
+| where like(ps_command, "%FromBase64String%") OR like(ps_command, "%iex%") OR like(ps_command, "%Invoke-WebRequest%")
+| stats values(ps_command) by user, host, _time
+```
+ **What it does:** Detects potentially malicious PowerShell using:
+- `FromBase64String` → base64-encoded payloads
+- `iex` → Invoke-Expression, often used to run hidden code
+- `Invoke-WebRequest` → used to download payloads
+
+ **Why it matters:** Obfuscated PowerShell is a top method for malware and C2 delivery.
+
+---
+
+### 3. `credential_access_lsass.spl` — *LSASS access attempts*
+```spl
+index=sysmon EventCode=10
+| where TargetImage="C:\\Windows\\System32\\lsass.exe"
+| stats count by user, SourceImage, TargetImage, host, _time
+```
+ **What it does:** Detects when a process accesses `lsass.exe`, a memory space that contains password hashes.
+
+**Why it matters:** Tools like Mimikatz access LSASS to extract credentials — this is a clear sign of compromise.
