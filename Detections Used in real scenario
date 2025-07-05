@@ -1,1 +1,17 @@
 
+Detections Used
+
+### 1. **After-Hours RDP Login Detection**
+- **Why**: LogonType 10 (RDP) after hours may indicate unauthorized access
+- **Event**: Windows Security Log EventCode 4624
+- **Detection**: Flags logins before 6 AM or after 8 PM
+
+### 2. **Obfuscated PowerShell Command Detection**
+- **Why**: PowerShell encoded commands (`FromBase64String`, `iex`) often indicate malware download or execution
+- **Events**: ScriptBlockLogging (4104), Process Creation (4688)
+- **Detection**: Looks for known PowerShell abuse patterns
+
+### 3. **LSASS Access Detection (Credential Dumping)**
+- **Why**: Accessing `lsass.exe` is a known credential dumping technique (e.g., Mimikatz)
+- **Event**: Sysmon EventCode 10 (process access)
+- **Detection**: Flags any access to LSASS by suspicious processes
